@@ -19,6 +19,7 @@ def main(argv):
             agent_emulated_modern, agent_emulated_legacy, \
             agent_dbghelp_prefix, agent_symsrv_prefix \
             = [Path(p) if p else None for p in args[:6]]
+    custom_script = Path(__file__).with_name("anti-anti-frida.py")
 
     if agent_modern is None and agent_legacy is None:
         print("At least one agent must be provided", file=sys.stderr)
@@ -38,6 +39,7 @@ def main(argv):
             embedded_symsrv = priv_dir / f"symsrv-{arch}.dll"
 
             shutil.copy(agent, embedded_agent)
+            maybe_patch_agent(embedded_agent, custom_script)
 
             if agent_dbghelp_prefix is not None:
                 shutil.copy(agent_dbghelp_prefix / arch / "dbghelp.dll", embedded_dbghelp)
@@ -67,6 +69,7 @@ def main(argv):
             shutil.copy(agent_modern, embedded_agent)
         else:
             shutil.copy(agent_legacy, embedded_agent)
+        maybe_patch_agent(embedded_agent, custom_script)
         embedded_assets += [embedded_agent]
     elif host_os in {"linux", "android"}:
         for agent, flavor in [(agent_modern, "64"),
@@ -76,6 +79,7 @@ def main(argv):
             embedded_agent = priv_dir / f"frida-agent-{flavor}.so"
             if agent is not None:
                 shutil.copy(agent, embedded_agent)
+                maybe_patch_agent(embedded_agent, custom_script)
             else:
                 embedded_agent.write_bytes(b"")
             embedded_assets += [embedded_agent]
@@ -83,6 +87,7 @@ def main(argv):
         embedded_agent = priv_dir / "frida-agent.so"
         agent = agent_modern if agent_modern is not None else agent_legacy
         shutil.copy(agent, embedded_agent)
+        maybe_patch_agent(embedded_agent, custom_script)
         embedded_assets += [embedded_agent]
     else:
         print("Unsupported OS", file=sys.stderr)
@@ -109,6 +114,14 @@ def pop_cmd_array_arg(args):
     if len(result) == 1 and not result[0]:
         return None
     return result
+
+
+def maybe_patch_agent(agent_path, custom_script):
+    if not custom_script.exists():
+        return
+    if agent_path.stat().st_size == 0:
+        return
+    subprocess.run([sys.executable, custom_script, agent_path], check=True)
 
 
 def detect_pefile_arch(location):
