@@ -368,7 +368,7 @@ namespace Frida {
 		}
 
 		protected override string? get_emulated_agent_path (uint pid) throws Error {
-			unowned string name;
+			string name;
 			switch (cpu_type_from_pid (pid)) {
 				case Gum.CpuType.IA32:
 					name = agent_name_prefix + "-arm.so";
